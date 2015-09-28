@@ -7,6 +7,9 @@ using Windows.ApplicationModel.Background;
 using Windows.Media.SpeechRecognition;
 using Windows.Media.Playback;
 using Windows.Media.Core;
+using Windows.Networking.Sockets;
+using System.Threading.Tasks;
+using Windows.Data.Json;
 
 // The Background Application template is documented at http://go.microsoft.com/fwlink/?LinkID=533884&clcid=0x409
 
@@ -21,105 +24,77 @@ namespace BackgroundApplication1
         {
             BackgroundTaskDeferral deferral = taskInstance.GetDeferral(); // This must be retrieved prior to subscribing to events below which use it
 
-            var speechRecognizer = new SpeechRecognizer(SpeechRecognizer.SystemSpeechLanguage);
-
-            var webSearchGrammar = new SpeechRecognitionTopicConstraint(SpeechRecognitionScenario.WebSearch, "webSearch");
-            speechRecognizer.Constraints.Add(webSearchGrammar);
-
-            SpeechRecognitionCompilationResult compilationResult = await speechRecognizer.CompileConstraintsAsync();
-
-            // Check to make sure that the constraints were in a proper format and the recognizer was able to compile it.
-            if (compilationResult.Status == SpeechRecognitionResultStatus.Success)
+            using (MopidyClient client = new MopidyClient())
             {
-                while (true)
+                await client.Open();
+                await client.Play("spotify:track:1hKdDCpiI9mqz1jVHRKG0E");
+
+                var speechRecognizer = new SpeechRecognizer(SpeechRecognizer.SystemSpeechLanguage);
+
+                var webSearchGrammar = new SpeechRecognitionTopicConstraint(SpeechRecognitionScenario.WebSearch, "webSearch");
+                speechRecognizer.Constraints.Add(webSearchGrammar);
+
+                SpeechRecognitionCompilationResult compilationResult = await speechRecognizer.CompileConstraintsAsync();
+
+                // Check to make sure that the constraints were in a proper format and the recognizer was able to compile it.
+                if (compilationResult.Status == SpeechRecognitionResultStatus.Success)
                 {
-                    var recognitionOperation = speechRecognizer.RecognizeAsync();
-                    SpeechRecognitionResult speechRecognitionResult = await recognitionOperation;
-
-                    if (speechRecognitionResult.Status == SpeechRecognitionResultStatus.Success)
+                    while (true)
                     {
-                        if (speechRecognitionResult.Text.StartsWith("play", StringComparison.OrdinalIgnoreCase))
+                        var recognitionOperation = speechRecognizer.RecognizeAsync();
+                        SpeechRecognitionResult speechRecognitionResult = await recognitionOperation;
+
+                        if (speechRecognitionResult.Status == SpeechRecognitionResultStatus.Success)
                         {
-                            string song = speechRecognitionResult.Text.Substring(4).Trim();
-
-                            Uri uri = GetSongUri(song);
-
-                            if (uri != null)
+                            if (speechRecognitionResult.Text.StartsWith("play", StringComparison.OrdinalIgnoreCase))
                             {
-                                var playbackList = new MediaPlaybackList();
-                                playbackList.AutoRepeatEnabled = true;
+                                string playSearchString = speechRecognitionResult.Text.Substring(4).Trim();
 
-                                // Add playback items to the list
-                                //foreach (var song in songs)
+                                string uri;
+                                if (playSearchString.StartsWith("artist", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    var source = MediaSource.CreateFromUri(uri);
-                                    source.CustomProperties[TrackIdKey] = uri;
-                                    source.CustomProperties[TitleKey] = "Jag Blaster";
-                                    //source.CustomProperties[AlbumArtKey] = song.AlbumArtUri;
-                                    playbackList.Items.Add(new MediaPlaybackItem(source));
+                                    uri = await client.SearchArtist(playSearchString.Substring(6).Trim());
+                                }
+                                else
+                                {
+                                    uri = await client.Search(playSearchString);
                                 }
 
-                                BackgroundMediaPlayer.Current.IsMuted = false;
-                                BackgroundMediaPlayer.Current.Volume = 1;
-
-                                BackgroundMediaPlayer.Current.Source = playbackList;
-                                BackgroundMediaPlayer.Current.Play();
+                                if (uri != null)
+                                {
+                                    await client.Play(uri);
+                                }
                             }
-                            //BackgroundMediaPlayer.Current.CurrentStateChanged += Current_CurrentStateChanged;
-
-                            //deferral = taskInstance.GetDeferral(); // This must be retrieved prior to subscribing to events below which use it
-
-                            //BackgroundMediaPlayer.Current.MediaEnded += Current_MediaEnded;
+                            else if (speechRecognitionResult.Text.StartsWith("stop", StringComparison.OrdinalIgnoreCase))
+                            {
+                                await client.Stop();
+                            }
+                            else if (speechRecognitionResult.Text.StartsWith("louder", StringComparison.OrdinalIgnoreCase))
+                            {
+                                int volume = await client.GetVolume();
+                                volume = Math.Min(volume + 10, 100);
+                                await client.SetVolume(volume);
+                            }
+                            else if (speechRecognitionResult.Text.StartsWith("quieter", StringComparison.OrdinalIgnoreCase))
+                            {
+                                int volume = await client.GetVolume();
+                                volume = Math.Max(volume - 10, 0);
+                                await client.SetVolume(volume);
+                            }
+                            else if (speechRecognitionResult.Text.StartsWith("mute", StringComparison.OrdinalIgnoreCase))
+                            {
+                                await client.SetVolume(0);
+                            }
                         }
-                        else if (speechRecognitionResult.Text.StartsWith("exit", StringComparison.OrdinalIgnoreCase))
+                        else
                         {
-                            deferral.Complete();
+                            //resultTextBlock.Visibility = Visibility.Visible;
+                            //resultTextBlock.Text = string.Format("Speech Recognition Failed, Status: {0}", speechRecognitionResult.Status.ToString());
                         }
 
                     }
-                    else
-                    {
-                        //resultTextBlock.Visibility = Visibility.Visible;
-                        //resultTextBlock.Text = string.Format("Speech Recognition Failed, Status: {0}", speechRecognitionResult.Status.ToString());
-                    }
-
                 }
             }
-        }
-
-        private static Uri GetSongUri(string song)
-        {
-            string fileName;
-            if (song.IndexOf("enter", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                fileName = "Enter_Sandman.mp3";
-            }
-            else if (song.IndexOf("master", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                fileName = "Master_Of_Puppets.mp3";
-            }
-            else if (song.IndexOf("blaster", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                fileName = "Jag_Blaster_Melody.mp3";
-            }
-            else if (song.IndexOf("party", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                fileName = "Party_Hard.wma";
-            }
-            else if (song.IndexOf("smells", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                fileName = "Smells_Like_Teen_Spirit.wma";
-            }
-            else if (song.IndexOf("bad name", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                fileName = "You_Give_Love_a_Bad_Name.wma";
-            }
-            else
-            {
-                return null;
-            }
-
-            return new Uri($"ms-appx:///Assets/{fileName}");
         }
     }
 }

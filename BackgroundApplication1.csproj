@@ -96,6 +96,7 @@
     <None Include="project.json" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="MopidyClient.cs" />
     <Compile Include="StartupTask.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -106,12 +107,6 @@
     <None Include="BackgroundApplication1_TemporaryKey.pfx" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Assets\Enter_Sandman.mp3" />
-    <Content Include="Assets\Jag_Blaster_Melody.mp3" />
-    <Content Include="Assets\Master_Of_Puppets.mp3" />
-    <Content Include="Assets\Party_Hard.wma" />
-    <Content Include="Assets\Smells_Like_Teen_Spirit.wma" />
-    <Content Include="Assets\You_Give_Love_a_Bad_Name.wma" />
     <Content Include="Properties\Default.rd.xml" />
     <Content Include="Assets\LockScreenLogo.scale-200.png" />
     <Content Include="Assets\SplashScreen.scale-200.png" />
